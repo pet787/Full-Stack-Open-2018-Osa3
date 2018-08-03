@@ -1,4 +1,11 @@
-const http = require('http')
+const express = require('express')
+const app = express()
+const bodyParser = require('body-parser')
+const cors = require('cors')
+
+app.use(cors())
+
+app.use(bodyParser.json())
 
 let notes = [
     {
@@ -20,12 +27,78 @@ let notes = [
       important: true
     }
   ]
+
+  // Middleware
+  const logger = (request, response, next) => {
+    console.log('Method:',request.method)
+    console.log('Path:  ', request.path)
+    console.log('Body:  ', request.body)
+    console.log('---')
+    next()
+  }
+
+  app.use(logger)
   
-  const app = http.createServer((request, response) => {
-    response.writeHead(200, { 'Content-Type': 'application/json' })
-    response.end(JSON.stringify(notes))
+  const generateId = () => {
+    const maxId = notes.length > 0 ? notes.map(n => n.id).sort().reverse()[0] : 1
+    return maxId + 1
+  }
+
+  // POST
+  app.post('/notes', (request, response) => {
+    const body = request.body
+  
+    if (body.content === undefined) {
+      return response.status(400).json({error: 'content missing'})
+    }
+  
+    const note = {
+      content: body.content,
+      important: body.important|| false,
+      date: new Date(),
+      id: generateId()
+    }
+  
+    notes = notes.concat(note)
+  
+    response.json(note)
   })
 
-const port = 3001
-app.listen(port)
-console.log(`Server running on port ${port}`)
+  // GET
+  app.get('/', (req, res) => {
+    res.send('<h1>Hello World!</h1>')
+  })
+  
+  app.get('/notes', (req, res) => {
+    res.json(notes)
+  })
+
+  app.get('/notes/:id', (request, response) => {
+    const id = Number(request.params.id)
+    const note = notes.find(note => note.id === id)
+  
+    if ( note ) {
+      response.json(note)
+    } else {
+      response.status(404).end()
+    }
+  })
+
+  // DELETE
+  app.delete('/notes/:id', (request, response) => {
+    const id = Number(request.params.id)
+    notes = notes.filter(note => note.id !== id )
+    response.status(204).end()
+  })
+
+  // NOT HANDLED ROUTE
+  const error = (request, response) => {
+    response.status(404).send({error: 'unknown endpoint'})
+  }
+  
+  app.use(error)
+
+  const PORT = process.env.PORT || 3001
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`)
+  })
